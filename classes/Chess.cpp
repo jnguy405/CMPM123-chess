@@ -61,6 +61,65 @@ void Chess::FENtoBoard(const std::string& fen) {
     // 3: castling availability (KQkq or -)
     // 4: en passant target square (in algebraic notation, or -)
     // 5: halfmove clock (number of halfmoves since the last capture or pawn advance)
+    
+    // Parse FEN string - split into parts
+    std::istringstream iss(fen);
+    std::string boardPosition;
+    
+    // Extract board position (first field)
+    iss >> boardPosition;
+    
+    // Clear the board first
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            _grid->getSquare(x, y)->setBit(nullptr);
+        }
+    }
+    
+    // Parse board position
+    int row = 0;
+    int col = 0;
+    
+    for (char c : boardPosition) {
+        if (c == '/') {
+            // Move to next row
+            row++;
+            col = 0;
+        } else if (std::isdigit(c)) {
+            // Empty squares
+            int emptyCount = c - '0';
+            col += emptyCount;
+        } else {
+            // Place a piece
+            int playerNumber = (std::isupper(c) ? 0 : 1); // Uppercase = white, lowercase = black
+            ChessPiece pieceType;
+            
+            // Determine piece type from the character
+            char upperC = std::toupper(c);
+            switch (upperC) {
+                case 'P': pieceType = Pawn; break;
+                case 'N': pieceType = Knight; break;
+                case 'B': pieceType = Bishop; break;
+                case 'R': pieceType = Rook; break;
+                case 'Q': pieceType = Queen; break;
+                case 'K': pieceType = King; break;
+                default: pieceType = Pawn; break;
+            }
+            
+            // Create the piece
+            Bit* piece = PieceForPlayer(playerNumber, pieceType);
+            
+            // Get the square and set the piece's position to match the square
+            ChessSquare* square = _grid->getSquare(col, row);
+            ImVec2 squarePos = square->getPosition();
+            piece->setPosition(squarePos);
+            
+            // Place the piece on the square
+            square->setBit(piece);
+            
+            col++;
+        }
+    }
 }
 
 bool Chess::actionForEmptyHolder(BitHolder &holder)
