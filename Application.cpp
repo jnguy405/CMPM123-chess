@@ -203,6 +203,41 @@ namespace ClassGame {
             
             if (ImGui::Button("Start Chess")) {
                 StartGameWithMode(new Chess(), "Chess");
+                
+                // Log the initial moves for chess
+                Chess* chessGame = dynamic_cast<Chess*>(game);
+                if (chessGame) {
+                    std::vector<BitMove> moves = chessGame->generateMovesForCurrentPlayer();
+                    
+                    // Log the number of moves
+                    LOG_INFO_TAG("=== CHESS MOVE GENERATOR TEST ===", "DEBUG");
+                    LOG_INFO_TAG("Generated " + std::to_string(moves.size()) + " legal moves from starting position", "DEBUG");
+                    
+                    // Log that we expect 20
+                    if (moves.size() == 20) {
+                        LOG_INFO_TAG("✓ CORRECT: Found exactly 20 moves (16 pawn moves + 4 knight moves)", "DEBUG");
+                    } else {
+                        LOG_INFO_TAG("✗ ERROR: Expected 20 moves but found " + std::to_string(moves.size()), "DEBUG");
+                    }
+                    
+                    // Log the first few moves as examples
+                    std::string movesList = "Sample moves: ";
+                    for (int i = 0; i < std::min(5, (int)moves.size()); i++) {
+                        // Convert square indices to algebraic notation
+                        int fromRow = moves[i].from / 8;
+                        int fromCol = moves[i].from % 8;
+                        int toRow = moves[i].to / 8;
+                        int toCol = moves[i].to % 8;
+                        
+                        char fromFile = 'a' + fromCol;
+                        char toFile = 'a' + toCol;
+                        
+                        movesList += std::string(1, fromFile) + std::to_string(fromRow + 1) + 
+                                    "->" + std::to_string(toFile) + std::to_string(toRow + 1) + " ";
+                    }
+                    LOG_INFO_TAG(movesList, "DEBUG");
+                    LOG_INFO_TAG("=== END TEST ===", "DEBUG");
+                }
             }
         } else {
             // Display current game information
@@ -308,19 +343,10 @@ namespace ClassGame {
             if (chessGame && !gameOver) {
                 ImGui::Separator();
                 
-                // Display check/stalemate information
-                //if (chessGame->isInCheck()) {
-                //    ImGui::TextColored(ImVec4(1, 0, 0, 1), "CHECK!");
-                //    ImGui::SameLine();
-                //}
-                
                 if (chessGame->getCurrentPlayer()) {
                     std::string playerColor = (game->getCurrentPlayer()->playerNumber() == 0) ? "White" : "Black";
                     ImGui::Text("%s's turn", playerColor.c_str());
                 }
-                
-                // Display captured pieces (if available)
-                // Note: You would need to add methods to Chess class to get captured pieces
             }
         } else {
             ImGui::Text("No game selected. Choose a game from the Settings window.");
