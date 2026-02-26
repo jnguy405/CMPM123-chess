@@ -63,6 +63,7 @@ private:
     uint64_t _blackQueens;
     
     // Move generation
+    void addPawnBitboardMovesToList(std::vector<BitMove>& moves, uint64_t bitboard, int shift);
     void generatePawnMoves(std::vector<BitMove>& moves, char color);
     void generateKnightMoves(std::vector<BitMove>& moves, char color);
     void generateKingMoves(std::vector<BitMove>& moves, char color);

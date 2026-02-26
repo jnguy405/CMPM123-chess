@@ -446,75 +446,38 @@ std::vector<BitMove> Chess::generateMovesForCurrentPlayer() {
 // PAWN MOVE GENERATION
 // ============================================================================
 
+void Chess::addPawnBitboardMovesToList(std::vector<BitMove>& moves, uint64_t bitboard, int shift) {
+    BitboardElement(bitboard).forEachBit([&](int toSquare) {
+        int fromSquare = toSquare - shift;
+        moves.emplace_back(fromSquare, toSquare, Pawn);
+    });
+}
+
 void Chess::generatePawnMoves(std::vector<BitMove>& moves, char color) {
     uint64_t pawns = (color == 'w') ? _whitePawns : _blackPawns;
-    uint64_t emptySquares = ~getAllPieces();
-    uint64_t enemyPieces = (color == 'w') ? getBlackPieces() : getWhitePieces();
-    
-    constexpr uint64_t NOT_A_FILE = 0xFEFEFEFEFEFEFEFEULL;
-    constexpr uint64_t NOT_H_FILE = 0x7F7F7F7F7F7F7F7FULL;
-    constexpr uint64_t RANK_2 = 0x000000000000FF00ULL;
-    constexpr uint64_t RANK_7 = 0x00FF000000000000ULL;
-    
     if (pawns == 0) return;
-    
-    if (color == 'w') {
-        uint64_t singlePushes = (pawns << 8) & emptySquares;
-        BitboardElement singlePushBB(singlePushes);
-        singlePushBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(toSquare - 8, toSquare, Pawn);
-        });
-        
-        uint64_t pawnsOnRank2 = pawns & RANK_2;
-        if (pawnsOnRank2) {
-            uint64_t oneStep = (pawnsOnRank2 << 8) & emptySquares;
-            uint64_t twoStep = (oneStep << 8) & emptySquares;
-            BitboardElement doublePushBB(twoStep);
-            doublePushBB.forEachBit([&](int toSquare) {
-                moves.emplace_back(toSquare - 16, toSquare, Pawn);
-            });
-        }
-        
-        uint64_t capturesLeft = ((pawns & NOT_A_FILE) << 7) & enemyPieces;
-        BitboardElement capturesLeftBB(capturesLeft);
-        capturesLeftBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(toSquare - 7, toSquare, Pawn);
-        });
-        
-        uint64_t capturesRight = ((pawns & NOT_H_FILE) << 9) & enemyPieces;
-        BitboardElement capturesRightBB(capturesRight);
-        capturesRightBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(toSquare - 9, toSquare, Pawn);
-        });
-    } else {
-        uint64_t singlePushes = (pawns >> 8) & emptySquares;
-        BitboardElement singlePushBB(singlePushes);
-        singlePushBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(toSquare + 8, toSquare, Pawn);
-        });
-        
-        uint64_t pawnsOnRank7 = pawns & RANK_7;
-        if (pawnsOnRank7) {
-            uint64_t oneStep = (pawnsOnRank7 >> 8) & emptySquares;
-            uint64_t twoStep = (oneStep >> 8) & emptySquares;
-            BitboardElement doublePushBB(twoStep);
-            doublePushBB.forEachBit([&](int toSquare) {
-                moves.emplace_back(toSquare + 16, toSquare, Pawn);
-            });
-        }
-        
-        uint64_t capturesLeft = ((pawns & NOT_H_FILE) >> 7) & enemyPieces;
-        BitboardElement capturesLeftBB(capturesLeft);
-        capturesLeftBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(toSquare + 7, toSquare, Pawn);
-        });
-        
-        uint64_t capturesRight = ((pawns & NOT_A_FILE) >> 9) & enemyPieces;
-        BitboardElement capturesRightBB(capturesRight);
-        capturesRightBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(toSquare + 9, toSquare, Pawn);
-        });
-    }
+
+    uint64_t empty = ~getAllPieces();
+    uint64_t enemy = (color == 'w') ? getBlackPieces() : getWhitePieces();
+
+    constexpr uint64_t Rank3 = 0x0000000000FF0000ULL;
+    constexpr uint64_t Rank6 = 0x0000FF0000000000ULL;
+
+    uint64_t singleMoves = (color == 'w') ? NORTH(pawns) & empty : SOUTH(pawns) & empty;
+    uint64_t doubleMoves = (color == 'w') ? NORTH(singleMoves & Rank3) & empty 
+                                           : SOUTH(singleMoves & Rank6) & empty;
+    uint64_t capturesLeft  = (color == 'w') ? NORTH_WEST(pawns) & enemy : SOUTH_WEST(pawns) & enemy;
+    uint64_t capturesRight = (color == 'w') ? NORTH_EAST(pawns) & enemy : SOUTH_EAST(pawns) & enemy;
+
+    int shiftForward      = (color == 'w') ?  8  : -8;
+    int shiftDouble       = (color == 'w') ?  16 : -16;
+    int shiftCaptureLeft  = (color == 'w') ?  7  : -7;
+    int shiftCaptureRight = (color == 'w') ?  9  : -9;
+
+    addPawnBitboardMovesToList(moves, singleMoves,   shiftForward);
+    addPawnBitboardMovesToList(moves, doubleMoves,   shiftDouble);
+    addPawnBitboardMovesToList(moves, capturesLeft,  shiftCaptureLeft);
+    addPawnBitboardMovesToList(moves, capturesRight, shiftCaptureRight);
 }
 
 // ============================================================================
