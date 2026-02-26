@@ -39,6 +39,7 @@ public:
     // Bitboard Management
     Grid* getGrid() override { return _grid; }
     std::vector<BitMove> generateMovesForCurrentPlayer();
+    uint64_t& getBitboard(ChessPiece pieceType, int playerNumber);
     uint64_t getWhitePieces() const;
     uint64_t getBlackPieces() const;
     uint64_t getAllPieces() const;
@@ -64,6 +65,7 @@ private:
     
     // Move generation
     void addPawnBitboardMovesToList(std::vector<BitMove>& moves, uint64_t bitboard, int shift);
+    void applyMoveToBitboards(const BitMove& move, int playerNumber);
     void generatePawnMoves(std::vector<BitMove>& moves, char color);
     void generateKnightMoves(std::vector<BitMove>& moves, char color);
     void generateKingMoves(std::vector<BitMove>& moves, char color);

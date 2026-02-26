@@ -71,37 +71,20 @@ void Chess::FENtoBoard(const std::string& fen) {
         } else {
             int playerNumber = (std::isupper(c) ? 0 : 1);
             ChessPiece pieceType;
-            int square = row * 8 + col;
-            uint64_t squareMask = 1ULL << square;
-            
+            int square = SQUARE(row, col);  // Using SQUARE macro
+
             char upperC = std::toupper(c);
             switch (upperC) {
-                case 'P': pieceType = Pawn; 
-                    if (playerNumber == 0) _whitePawns |= squareMask;
-                    else _blackPawns |= squareMask;
-                    break;
-                case 'N': pieceType = Knight;
-                    if (playerNumber == 0) _whiteKnights |= squareMask;
-                    else _blackKnights |= squareMask;
-                    break;
-                case 'B': pieceType = Bishop;
-                    if (playerNumber == 0) _whiteBishops |= squareMask;
-                    else _blackBishops |= squareMask;
-                    break;
-                case 'R': pieceType = Rook;
-                    if (playerNumber == 0) _whiteRooks |= squareMask;
-                    else _blackRooks |= squareMask;
-                    break;
-                case 'Q': pieceType = Queen;
-                    if (playerNumber == 0) _whiteQueens |= squareMask;
-                    else _blackQueens |= squareMask;
-                    break;
-                case 'K': pieceType = King;
-                    if (playerNumber == 0) _whiteKing |= squareMask;
-                    else _blackKing |= squareMask;
-                    break;
-                default: pieceType = Pawn; break;
+                case 'P': pieceType = Pawn;   break;
+                case 'N': pieceType = Knight; break;
+                case 'B': pieceType = Bishop; break;
+                case 'R': pieceType = Rook;   break;
+                case 'Q': pieceType = Queen;  break;
+                case 'K': pieceType = King;   break;
+                default:  pieceType = Pawn;   break;
             }
+            // Using SET_BIT macro
+            SET_BIT(getBitboard(pieceType, playerNumber), square);
             
             Bit* piece = PieceForPlayer(playerNumber, pieceType);
             ChessSquare* squarePtr = _grid->getSquare(col, row);
@@ -131,8 +114,8 @@ bool Chess::canBitMoveFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
     
     if (!srcSquare || !dstSquare) return false;
     
-    int fromSquare = srcSquare->getRow() * 8 + srcSquare->getColumn();
-    int toSquare = dstSquare->getRow() * 8 + dstSquare->getColumn();
+    int fromSquare = SQUARE(srcSquare->getRow(), srcSquare->getColumn());  // Using SQUARE macro
+    int toSquare = SQUARE(dstSquare->getRow(), dstSquare->getColumn());    // Using SQUARE macro
     
     if (fromSquare == toSquare) return false;
     
@@ -147,15 +130,10 @@ bool Chess::canBitMoveFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
     char color = (getCurrentPlayer()->playerNumber() == 0) ? 'w' : 'b';
     std::vector<BitMove> moves;
     
-    if (color == 'w') {
-        generatePawnMoves(moves, 'w');
-        generateKnightMoves(moves, 'w');
-        generateKingMoves(moves, 'w');
-    } else {
-        generatePawnMoves(moves, 'b');
-        generateKnightMoves(moves, 'b');
-        generateKingMoves(moves, 'b');
-    }
+    // Generate all moves for the current color directly
+    generatePawnMoves(moves, color);
+    generateKnightMoves(moves, color);
+    generateKingMoves(moves, color);
     
     for (const auto& move : moves)
         if (move.from == fromSquare && move.to == toSquare)
@@ -169,42 +147,29 @@ bool Chess::actionForEmptyHolder(BitHolder &holder)
     return false;
 }
 
+// Helper function to apply a move to bitboards
+void Chess::applyMoveToBitboards(const BitMove& move, int playerNumber) {
+    ChessPiece pieceType = static_cast<ChessPiece>(move.piece);
+    int enemyPlayer = (playerNumber == 0) ? 1 : 0;
+    
+    // Clear the source square
+    CLEAR_BIT(getBitboard(pieceType, playerNumber), move.from);
+    
+    // Set the destination square
+    SET_BIT(getBitboard(pieceType, playerNumber), move.to);
+    
+    // Clear any enemy piece at the destination (capture)
+    static const ChessPiece types[6] = {Pawn, Knight, Bishop, Rook, Queen, King};
+    for (int i = 0; i < 6; i++) {
+        CLEAR_BIT(getBitboard(types[i], enemyPlayer), move.to);
+    }
+}
+
 void Chess::makeMove(const BitMove& move) {
     updateBitboardsFromGrid();
     
-    ChessPiece pieceType = static_cast<ChessPiece>(move.piece);
-    char movingColor = (getCurrentPlayer()->playerNumber() == 0) ? 'w' : 'b';
-    
-    uint64_t fromMask = 1ULL << move.from;
-    uint64_t toMask = 1ULL << move.to;
-    
-    if (movingColor == 'w') {
-        switch (pieceType) {
-            case Pawn: _whitePawns &= ~fromMask; _whitePawns |= toMask; break;
-            case Knight: _whiteKnights &= ~fromMask; _whiteKnights |= toMask; break;
-            case King: _whiteKing &= ~fromMask; _whiteKing |= toMask; break;
-            default: break;
-        }
-        _blackPawns &= ~toMask;
-        _blackKnights &= ~toMask;
-        _blackBishops &= ~toMask;
-        _blackRooks &= ~toMask;
-        _blackQueens &= ~toMask;
-        _blackKing &= ~toMask;
-    } else {
-        switch (pieceType) {
-            case Pawn: _blackPawns &= ~fromMask; _blackPawns |= toMask; break;
-            case Knight: _blackKnights &= ~fromMask; _blackKnights |= toMask; break;
-            case King: _blackKing &= ~fromMask; _blackKing |= toMask; break;
-            default: break;
-        }
-        _whitePawns &= ~toMask;
-        _whiteKnights &= ~toMask;
-        _whiteBishops &= ~toMask;
-        _whiteRooks &= ~toMask;
-        _whiteQueens &= ~toMask;
-        _whiteKing &= ~toMask;
-    }
+    int currentPlayer = getCurrentPlayer()->playerNumber();
+    applyMoveToBitboards(move, currentPlayer);
     
     updateGridFromBitboards();
     endTurn();
@@ -219,46 +184,17 @@ void Chess::moveCompleted(Bit* bit, BitHolder* src, BitHolder* dst)
     
     if (!srcSquare || !dstSquare) return;
     
-    int fromSquare = srcSquare->getRow() * 8 + srcSquare->getColumn();
-    int toSquare = dstSquare->getRow() * 8 + dstSquare->getColumn();
+    int fromSquare = SQUARE(srcSquare->getRow(), srcSquare->getColumn());  // Using SQUARE macro
+    int toSquare = SQUARE(dstSquare->getRow(), dstSquare->getColumn());    // Using SQUARE macro
     
     int gameTag = bit->gameTag();
     ChessPiece pieceType = static_cast<ChessPiece>(gameTag % 128);
+    int playerNumber = (gameTag < 128) ? 0 : 1;
     
     BitMove move(fromSquare, toSquare, pieceType);
     
     updateBitboardsFromGrid();
-    
-    uint64_t fromMask = 1ULL << fromSquare;
-    uint64_t toMask = 1ULL << toSquare;
-    
-    if (gameTag < 128) {
-        switch (pieceType) {
-            case Pawn: _whitePawns &= ~fromMask; _whitePawns |= toMask; break;
-            case Knight: _whiteKnights &= ~fromMask; _whiteKnights |= toMask; break;
-            case King: _whiteKing &= ~fromMask; _whiteKing |= toMask; break;
-            default: break;
-        }
-        _blackPawns &= ~toMask;
-        _blackKnights &= ~toMask;
-        _blackBishops &= ~toMask;
-        _blackRooks &= ~toMask;
-        _blackQueens &= ~toMask;
-        _blackKing &= ~toMask;
-    } else {
-        switch (pieceType) {
-            case Pawn: _blackPawns &= ~fromMask; _blackPawns |= toMask; break;
-            case Knight: _blackKnights &= ~fromMask; _blackKnights |= toMask; break;
-            case King: _blackKing &= ~fromMask; _blackKing |= toMask; break;
-            default: break;
-        }
-        _whitePawns &= ~toMask;
-        _whiteKnights &= ~toMask;
-        _whiteBishops &= ~toMask;
-        _whiteRooks &= ~toMask;
-        _whiteQueens &= ~toMask;
-        _whiteKing &= ~toMask;
-    }
+    applyMoveToBitboards(move, playerNumber);
     
     endTurn();
 }
@@ -353,32 +289,12 @@ void Chess::updateBitboardsFromGrid() {
             Bit* piece = _grid->getSquare(col, row)->bit();
             if (!piece) continue;
             
-            int square = row * 8 + col;
+            int square = SQUARE(row, col);  // Using SQUARE macro
             int gameTag = piece->gameTag();
             ChessPiece pieceType = static_cast<ChessPiece>(gameTag % 128);
-            uint64_t mask = 1ULL << square;
             
-            if (gameTag < 128) {
-                switch (pieceType) {
-                    case Pawn: _whitePawns |= mask; break;
-                    case Knight: _whiteKnights |= mask; break;
-                    case Bishop: _whiteBishops |= mask; break;
-                    case Rook: _whiteRooks |= mask; break;
-                    case Queen: _whiteQueens |= mask; break;
-                    case King: _whiteKing |= mask; break;
-                    default: break;
-                }
-            } else {
-                switch (pieceType) {
-                    case Pawn: _blackPawns |= mask; break;
-                    case Knight: _blackKnights |= mask; break;
-                    case Bishop: _blackBishops |= mask; break;
-                    case Rook: _blackRooks |= mask; break;
-                    case Queen: _blackQueens |= mask; break;
-                    case King: _blackKing |= mask; break;
-                    default: break;
-                }
-            }
+            // Using SET_BIT macro
+            SET_BIT(getBitboard(pieceType, gameTag < 128 ? 0 : 1), square);
         }
     }
 }
@@ -401,18 +317,34 @@ void Chess::updateGridFromBitboards() {
         });
     };
     
-    placePieces(_whitePawns, 0, Pawn);
-    placePieces(_whiteKnights, 0, Knight);
-    placePieces(_whiteBishops, 0, Bishop);
-    placePieces(_whiteRooks, 0, Rook);
-    placePieces(_whiteQueens, 0, Queen);
-    placePieces(_whiteKing, 0, King);
-    placePieces(_blackPawns, 1, Pawn);
-    placePieces(_blackKnights, 1, Knight);
-    placePieces(_blackBishops, 1, Bishop);
-    placePieces(_blackRooks, 1, Rook);
-    placePieces(_blackQueens, 1, Queen);
-    placePieces(_blackKing, 1, King);
+    static const ChessPiece types[6] = {Pawn, Knight, Bishop, Rook, Queen, King};
+    for (int player = 0; player < 2; player++)
+        for (int i = 0; i < 6; i++)
+            placePieces(getBitboard(types[i], player), player, types[i]);
+}
+
+uint64_t& Chess::getBitboard(ChessPiece pieceType, int playerNumber) {
+    if (playerNumber == 0) {
+        switch (pieceType) {
+            case Pawn:   return _whitePawns;
+            case Knight: return _whiteKnights;
+            case Bishop: return _whiteBishops;
+            case Rook:   return _whiteRooks;
+            case Queen:  return _whiteQueens;
+            case King:   return _whiteKing;
+            default:     return _whitePawns;
+        }
+    } else {
+        switch (pieceType) {
+            case Pawn:   return _blackPawns;
+            case Knight: return _blackKnights;
+            case Bishop: return _blackBishops;
+            case Rook:   return _blackRooks;
+            case Queen:  return _blackQueens;
+            case King:   return _blackKing;
+            default:     return _blackPawns;
+        }
+    }
 }
 
 uint64_t Chess::getWhitePieces() const {
@@ -463,6 +395,7 @@ void Chess::generatePawnMoves(std::vector<BitMove>& moves, char color) {
     constexpr uint64_t Rank3 = 0x0000000000FF0000ULL;
     constexpr uint64_t Rank6 = 0x0000FF0000000000ULL;
 
+    // Using directional macros for pawn moves
     uint64_t singleMoves = (color == 'w') ? NORTH(pawns) & empty : SOUTH(pawns) & empty;
     uint64_t doubleMoves = (color == 'w') ? NORTH(singleMoves & Rank3) & empty 
                                            : SOUTH(singleMoves & Rank6) & empty;
@@ -492,6 +425,7 @@ void Chess::generateKnightMoves(std::vector<BitMove>& moves, char color) {
     
     BitboardElement knightBB(knights);
     knightBB.forEachBit([&](int fromSquare) {
+        // Using pre-calculated knight attacks from magic bitboards
         uint64_t attacks = KnightAttacks[fromSquare] & ~friendlyPieces;
         BitboardElement attackBB(attacks);
         attackBB.forEachBit([&](int toSquare) {
@@ -512,6 +446,7 @@ void Chess::generateKingMoves(std::vector<BitMove>& moves, char color) {
     
     BitboardElement kingBB(king);
     kingBB.forEachBit([&](int fromSquare) {
+        // Using pre-calculated king attacks from magic bitboards
         uint64_t attacks = KingAttacks[fromSquare] & ~friendlyPieces;
         BitboardElement attackBB(attacks);
         attackBB.forEachBit([&](int toSquare) {
