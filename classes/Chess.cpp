@@ -114,26 +114,12 @@ bool Chess::canBitMoveFromTo(Bit &bit, BitHolder &src, BitHolder &dst)
     
     if (!srcSquare || !dstSquare) return false;
     
-    int fromSquare = SQUARE(srcSquare->getRow(), srcSquare->getColumn());  // Using SQUARE macro
-    int toSquare = SQUARE(dstSquare->getRow(), dstSquare->getColumn());    // Using SQUARE macro
+    int fromSquare = SQUARE(srcSquare->getRow(), srcSquare->getColumn());
+    int toSquare = SQUARE(dstSquare->getRow(), dstSquare->getColumn());
     
     if (fromSquare == toSquare) return false;
     
-    int gameTag = bit.gameTag();
-    ChessPiece pieceType = static_cast<ChessPiece>(gameTag % 128);
-    
-    if (pieceType != Pawn && pieceType != Knight && pieceType != King)
-        return false;
-    
-    updateBitboardsFromGrid();
-    
-    char color = (getCurrentPlayer()->playerNumber() == 0) ? 'w' : 'b';
-    std::vector<BitMove> moves;
-    
-    // Generate all moves for the current color directly
-    generatePawnMoves(moves, color);
-    generateKnightMoves(moves, color);
-    generateKingMoves(moves, color);
+    std::vector<BitMove> moves = generateAllMoves();
     
     for (const auto& move : moves)
         if (move.from == fromSquare && move.to == toSquare)
@@ -211,7 +197,7 @@ Player* Chess::checkForWinner() {
 }
 
 bool Chess::checkForDraw() {
-    return generateMovesForCurrentPlayer().empty();
+    return generateAllMoves().empty();
 }
 
 Bit* Chess::PieceForPlayer(const int playerNumber, ChessPiece piece)
@@ -267,17 +253,8 @@ char Chess::pieceNotation(int x, int y) const {
     return bit ? (bit->gameTag() < 128 ? wpieces[bit->gameTag()] : bpieces[bit->gameTag()-128]) : '0';
 }
 
-bool Chess::isValidMove(int fromSquare, int toSquare, ChessPiece pieceType, char color)
-{
-    std::vector<BitMove> moves = generateMovesForCurrentPlayer();
-    for (const auto& move : moves)
-        if (move.from == fromSquare && move.to == toSquare && move.piece == pieceType)
-            return true;
-    return false;
-}
-
 // ============================================================================
-// BITBOARD MANAGEMENT
+// BITBOARD HELPERS
 // ============================================================================
 
 void Chess::updateBitboardsFromGrid() {
@@ -359,25 +336,13 @@ uint64_t Chess::getAllPieces() const {
     return getWhitePieces() | getBlackPieces();
 }
 
-std::vector<BitMove> Chess::generateMovesForCurrentPlayer() {
-    std::vector<BitMove> moves;
-    moves.reserve(40);
-    
-    updateBitboardsFromGrid();
-    
-    char color = (getCurrentPlayer()->playerNumber() == 0) ? 'w' : 'b';
-    
-    generatePawnMoves(moves, color);
-    generateKnightMoves(moves, color);
-    generateKingMoves(moves, color);
-    
-    return moves;
-}
+
+static uint64_t knightAttackFn(int sq, uint64_t) { return KnightAttacks[sq]; }
+static uint64_t kingAttackFn(int sq, uint64_t)   { return KingAttacks[sq]; }
 
 // ============================================================================
-// PAWN MOVE GENERATION
+// MOVE GENERATION
 // ============================================================================
-
 void Chess::addPawnBitboardMovesToList(std::vector<BitMove>& moves, uint64_t bitboard, int shift) {
     BitboardElement(bitboard).forEachBit([&](int toSquare) {
         int fromSquare = toSquare - shift;
@@ -413,44 +378,38 @@ void Chess::generatePawnMoves(std::vector<BitMove>& moves, char color) {
     addPawnBitboardMovesToList(moves, capturesRight, shiftCaptureRight);
 }
 
-// ============================================================================
-// KNIGHT MOVE GENERATION
-// ============================================================================
+void Chess::generatePieceMoves(std::vector<BitMove>& moves, char color,
+                                ChessPiece pieceType, uint64_t(*attackFn)(int, uint64_t)) {
+    uint64_t pieces   = getBitboard(pieceType, color == 'w' ? 0 : 1);
+    uint64_t friendly = (color == 'w') ? getWhitePieces() : getBlackPieces();
+    uint64_t occupied = getAllPieces();
 
-void Chess::generateKnightMoves(std::vector<BitMove>& moves, char color) {
-    uint64_t knights = (color == 'w') ? _whiteKnights : _blackKnights;
-    uint64_t friendlyPieces = (color == 'w') ? getWhitePieces() : getBlackPieces();
-    
-    if (knights == 0) return;
-    
-    BitboardElement knightBB(knights);
-    knightBB.forEachBit([&](int fromSquare) {
-        // Using pre-calculated knight attacks from magic bitboards
-        uint64_t attacks = KnightAttacks[fromSquare] & ~friendlyPieces;
+    if (pieces == 0) return;
+
+    BitboardElement pieceBB(pieces);
+    pieceBB.forEachBit([&](int fromSquare) {
+        uint64_t attacks = attackFn(fromSquare, occupied) & ~friendly;
         BitboardElement attackBB(attacks);
         attackBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(fromSquare, toSquare, Knight);
+            moves.emplace_back(fromSquare, toSquare, pieceType);
         });
     });
 }
 
-// ============================================================================
-// KING MOVE GENERATION
-// ============================================================================
+std::vector<BitMove> Chess::generateAllMoves() {
+    std::vector<BitMove> moves;
+    moves.reserve(40);
 
-void Chess::generateKingMoves(std::vector<BitMove>& moves, char color) {
-    uint64_t king = (color == 'w') ? _whiteKing : _blackKing;
-    uint64_t friendlyPieces = (color == 'w') ? getWhitePieces() : getBlackPieces();
-    
-    if (king == 0) return;
-    
-    BitboardElement kingBB(king);
-    kingBB.forEachBit([&](int fromSquare) {
-        // Using pre-calculated king attacks from magic bitboards
-        uint64_t attacks = KingAttacks[fromSquare] & ~friendlyPieces;
-        BitboardElement attackBB(attacks);
-        attackBB.forEachBit([&](int toSquare) {
-            moves.emplace_back(fromSquare, toSquare, King);
-        });
-    });
+    updateBitboardsFromGrid();
+
+    char color = (getCurrentPlayer()->playerNumber() == 0) ? 'w' : 'b';
+
+    generatePawnMoves(moves, color);
+    generatePieceMoves(moves, color, Knight, knightAttackFn);
+    generatePieceMoves(moves, color, Bishop, getBishopAttacks);
+    generatePieceMoves(moves, color, Rook,   getRookAttacks);
+    generatePieceMoves(moves, color, Queen,  getQueenAttacks);
+    generatePieceMoves(moves, color, King,   kingAttackFn);
+
+    return moves;
 }
