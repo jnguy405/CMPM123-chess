@@ -369,8 +369,8 @@ void Chess::generatePawnMoves(std::vector<BitMove>& moves, char color) {
 
     int shiftForward      = (color == 'w') ?  8  : -8;
     int shiftDouble       = (color == 'w') ?  16 : -16;
-    int shiftCaptureLeft  = (color == 'w') ?  7  : -7;
-    int shiftCaptureRight = (color == 'w') ?  9  : -9;
+    int shiftCaptureLeft  = (color == 'w') ?  7  : -9;
+    int shiftCaptureRight = (color == 'w') ?  9  : -7;
 
     addPawnBitboardMovesToList(moves, singleMoves,   shiftForward);
     addPawnBitboardMovesToList(moves, doubleMoves,   shiftDouble);
